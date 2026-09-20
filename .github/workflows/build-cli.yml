@@ -1,0 +1,222 @@
+name: Build CLI release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish.
+        required: false
+        default: v0.0.0-local
+      source_ref:
+        description: narutomobile ref, tag, branch, or SHA.
+        required: false
+        default: main
+      picli_tag:
+        description: duorua/MaaPiCli release tag to use.
+        required: false
+        default: v5.12.4-beta
+      is_prerelease:
+        description: Publish as prerelease.
+        required: false
+        default: "true"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      source_ref: ${{ steps.meta.outputs.source_ref }}
+      picli_tag: ${{ steps.meta.outputs.picli_tag }}
+      is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
+    steps:
+      - id: meta
+        shell: bash
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          source_ref="${{ github.event.inputs.source_ref || 'main' }}"
+          picli_tag="${{ github.event.inputs.picli_tag || 'v5.12.4-beta' }}"
+          is_prerelease="${{ github.event.inputs.is_prerelease }}"
+          if [ -z "$is_prerelease" ]; then
+            if [[ "$tag" == *-* ]]; then
+              is_prerelease="true"
+            else
+              is_prerelease="false"
+            fi
+          fi
+          {
+            echo "tag=$tag"
+            echo "source_ref=$source_ref"
+            echo "picli_tag=$picli_tag"
+            echo "is_prerelease=$is_prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            maa_fw_os: win
+            picli_os: windows
+            arch: x86_64
+            platform: win32
+          - runner: windows-11-arm
+            maa_fw_os: win
+            picli_os: windows
+            arch: aarch64
+            platform: win32
+          - runner: ubuntu-latest
+            maa_fw_os: linux
+            picli_os: linux
+            arch: x86_64
+            platform: linux
+          - runner: ubuntu-24.04-arm
+            maa_fw_os: linux
+            picli_os: linux
+            arch: aarch64
+            platform: linux
+          - runner: macos-15-intel
+            maa_fw_os: macos
+            picli_os: macos
+            arch: x86_64
+            platform: darwin
+          - runner: macos-latest
+            maa_fw_os: macos
+            picli_os: macos
+            arch: aarch64
+            platform: darwin
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout CLI repo
+        uses: actions/checkout@v4
+
+      - name: Checkout narutomobile source
+        uses: actions/checkout@v4
+        with:
+          repository: duorua/narutomobile
+          ref: ${{ needs.meta.outputs.source_ref }}
+          path: narutomobile
+
+      - name: Download MaaFramework C runtime
+        uses: robinraju/release-downloader@v1
+        with:
+          repository: MaaXYZ/MaaFramework
+          fileName: "MAA-${{ matrix.maa_fw_os }}-${{ matrix.arch }}*"
+          out-file-path: deps
+          extract: true
+          latest: true
+
+      - name: Download custom MaaPiCli
+        uses: robinraju/release-downloader@v1
+        with:
+          repository: duorua/MaaPiCli
+          fileName: "MAA-MaaPiCli-${{ matrix.picli_os }}-${{ matrix.arch }}*"
+          out-file-path: picli
+          extract: true
+          latest: false
+          tag: ${{ needs.meta.outputs.picli_tag }}
+
+      - name: Setup embedded Python
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PY="$(command -v python3 || command -v python)"
+          "$PY" narutomobile/tools/ci/setup_embed_python.py
+          if [ -f "./install/python/bin/python3" ]; then
+            chmod +x ./install/python/bin/python3
+          fi
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          if [ -f "./install/python/python.exe" ]; then
+            EMBED="./install/python/python.exe"
+            EMBED_IN_NARUTOMOBILE="../install/python/python.exe"
+          else
+            EMBED="./install/python/bin/python3"
+            EMBED_IN_NARUTOMOBILE="../install/python/bin/python3"
+          fi
+
+          cd narutomobile
+          "$EMBED_IN_NARUTOMOBILE" ../tools/ci/download_deps.py --deps-dir ../install/deps
+          cd ..
+
+          "$EMBED" -m pip install -U -r narutomobile/requirements.txt \
+            --no-warn-script-location \
+            --find-links install/deps \
+            --no-index
+
+      - name: Build CLI package
+        shell: bash
+        run: |
+          if [ -f "./install/python/python.exe" ]; then
+            EMBED="./install/python/python.exe"
+          else
+            EMBED="./install/python/bin/python3"
+          fi
+          "$EMBED" tools/ci/install_cli.py \
+            --source-dir narutomobile \
+            --deps-dir deps \
+            --python-dir install/python \
+            --picli-dir picli \
+            --output-dir install-cli \
+            --version "${{ needs.meta.outputs.tag }}" \
+            --platform ${{ matrix.platform }}
+
+      - name: Fix permissions (Linux/macOS)
+        if: matrix.platform != 'win32'
+        shell: bash
+        run: |
+          if [ -f "install-cli/MaaAutoNaruto" ]; then chmod +x install-cli/MaaAutoNaruto; fi
+          if [ -d "install-cli/python/bin" ]; then chmod +x install-cli/python/bin/* 2>/dev/null || true; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MaaAutoNaruto-${{ matrix.picli_os }}-${{ matrix.arch }}-${{ needs.meta.outputs.tag }}-PiCLI
+          path: install-cli
+
+  release:
+    if: ${{ needs.meta.outputs.tag != 'v0.0.0-local' }}
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Process artifacts
+        shell: bash
+        run: |
+          cd release-assets
+          for f in *; do
+            if [[ -d "$f" && "$f" == *"windows"* ]]; then
+              (cd "$f" && zip -r "../$f.zip" .)
+              rm -rf "$f"
+            elif [[ -d "$f" ]]; then
+              if [[ -f "$f/MaaAutoNaruto" ]]; then chmod +x "$f/MaaAutoNaruto"; fi
+              tar -czf "$f.tar.gz" "$f"
+              rm -rf "$f"
+            fi
+          done
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          tag_name: ${{ needs.meta.outputs.tag }}
+          prerelease: ${{ needs.meta.outputs.is_prerelease == 'true' }}
+          body: |
+            MaaAutoNaruto CLI package release.
+
+            Source: `duorua/narutomobile` @ `${{ needs.meta.outputs.source_ref }}`
+            MaaPiCli: `duorua/MaaPiCli` @ `${{ needs.meta.outputs.picli_tag }}`
+
+            下载后解压即可运行 `MaaAutoNaruto(.exe)`。
