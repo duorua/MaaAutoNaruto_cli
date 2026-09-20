@@ -129,7 +129,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PY="$(command -v python3 || command -v python)"
-          "$PY" narutomobile/tools/ci/setup_embed_python.py
+          "$PY" tools/ci/setup_embed_python.py
           if [ -f "./install/python/bin/python3" ]; then
             chmod +x ./install/python/bin/python3
           fi
@@ -139,20 +139,11 @@ jobs:
         run: |
           if [ -f "./install/python/python.exe" ]; then
             EMBED="./install/python/python.exe"
-            EMBED_IN_NARUTOMOBILE="../install/python/python.exe"
           else
             EMBED="./install/python/bin/python3"
-            EMBED_IN_NARUTOMOBILE="../install/python/bin/python3"
           fi
-
-          cd narutomobile
-          "$EMBED_IN_NARUTOMOBILE" ../tools/ci/download_deps.py --deps-dir ../install/deps
-          cd ..
-
           "$EMBED" -m pip install -U -r narutomobile/requirements.txt \
-            --no-warn-script-location \
-            --find-links install/deps \
-            --no-index
+            --no-warn-script-location
 
       - name: Build CLI package
         shell: bash
@@ -182,6 +173,7 @@ jobs:
         with:
           name: MaaAutoNaruto-${{ matrix.picli_os }}-${{ matrix.arch }}-${{ needs.meta.outputs.tag }}-PiCLI
           path: install-cli
+          if-no-files-found: error
 
   release:
     if: ${{ needs.meta.outputs.tag != 'v0.0.0-local' }}
