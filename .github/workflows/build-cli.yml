@@ -14,7 +14,7 @@ on:
       picli_tag:
         description: duorua/MaaPiCli release tag to use.
         required: false
-        default: v5.12.4-beta
+        default: v5.12.4-beta.1
       is_prerelease:
         description: Publish as prerelease.
         required: false
@@ -111,7 +111,8 @@ jobs:
           fileName: "MAA-${{ matrix.maa_fw_os }}-${{ matrix.arch }}*"
           out-file-path: deps
           extract: true
-          latest: true
+          latest: false
+          tag: v5.12.3
 
       - name: Download custom MaaPiCli
         uses: robinraju/release-downloader@v1
