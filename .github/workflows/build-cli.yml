@@ -14,7 +14,7 @@ on:
       picli_tag:
         description: duorua/MaaPiCli release tag to use.
         required: false
-        default: v5.12.4-beta.1
+        default: v5.12.4-beta.3
       is_prerelease:
         description: Publish as prerelease.
         required: false
