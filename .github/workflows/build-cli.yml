@@ -14,7 +14,7 @@ on:
       picli_tag:
         description: duorua/MaaPiCli release tag to use.
         required: false
-        default: v5.12.4-beta.3
+        default: v5.13.0-beta
       is_prerelease:
         description: Publish as prerelease.
         required: false
@@ -112,7 +112,7 @@ jobs:
           out-file-path: deps
           extract: true
           latest: false
-          tag: v5.12.3
+          tag: v5.13.0
 
       - name: Download custom MaaPiCli
         uses: robinraju/release-downloader@v1
