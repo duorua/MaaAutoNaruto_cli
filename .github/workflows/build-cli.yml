@@ -14,7 +14,8 @@ on:
       picli_tag:
         description: duorua/MaaPiCli release tag to use.
         required: false
-        default: v5.13.0-beta.3
+        #主仓库触发时候使用的picli版本
+        default: v5.13.0-beta.4
       is_prerelease:
         description: Publish as prerelease.
         required: false
@@ -25,6 +26,10 @@ on:
 
 permissions:
   contents: write
+
+#push tag 使用的picli版本
+env:
+  DEFAULT_PICLI_TAG: v5.13.0-beta.4
 
 jobs:
   meta:
@@ -40,7 +45,10 @@ jobs:
         run: |
           tag="${{ github.event.inputs.tag || github.ref_name }}"
           source_ref="${{ github.event.inputs.source_ref || 'main' }}"
-          picli_tag="${{ github.event.inputs.picli_tag || 'v5.12.4-beta' }}"
+          picli_tag="${{ github.event.inputs.picli_tag }}"
+          if [ -z "$picli_tag" ]; then
+            picli_tag="$DEFAULT_PICLI_TAG"
+          fi
           is_prerelease="${{ github.event.inputs.is_prerelease }}"
           if [ -z "$is_prerelease" ]; then
             if [[ "$tag" == *-* ]]; then
