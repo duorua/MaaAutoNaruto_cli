@@ -15,7 +15,7 @@ on:
         description: duorua/MaaPiCli release tag to use.
         required: false
         #主仓库触发时候使用的picli版本
-        default: v5.13.0-beta.6
+        default: v5.13.0-beta.7
       is_prerelease:
         description: Publish as prerelease.
         required: false
@@ -29,7 +29,7 @@ permissions:
 
 #push tag 使用的picli版本
 env:
-  DEFAULT_PICLI_TAG: v5.13.0-beta.6
+  DEFAULT_PICLI_TAG: v5.13.0-beta.7
 
 jobs:
   meta:
