@@ -4,3 +4,5 @@
 > 否则上手难度有点高
 ###
 第一次使用可能需要管理员身份运行,否则权限不够无法写入config文件夹
+
+[MaaAutoNaruto主仓库](https://github.com/duorua/narutomobile)
